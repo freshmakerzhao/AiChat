@@ -1,0 +1,6 @@
+.vs
+.vscode
+.VSCodeCounter
+src/out
+.idea
+cmake-build*

@@ -1,0 +1,55 @@
+/*
+#squareButton {
+    text-align: center;
+    background-color: rgb(255, 255, 255);
+    border: 1px solid black;
+}
+*/
+#squareButton:hover {
+    text-align: center;
+    background-color: rgb(237, 237, 237);
+    border: 1px solid black;
+}
+
+/*-------------------QListView, QListWidget,QTreeView, QTreeWidget -------------------*/
+.QTreeView, .QTableView {
+    border: 1px solid #DCDCDC;
+}
+
+.QTreeView::item, .QTableView::item {
+    border-bottom: 1px solid #DCDCDC;
+    border-right: 1px solid #DCDCDC;
+}
+
+.QTreeView::item:selected, .QTableView::item:selected {
+    background-color: #4f7cce;
+}
+/*
+.QTableView {
+    border: 1px solid #DCDCDC;
+}
+
+.QTableView::item {
+    border-bottom: 1px solid #DCDCDC;
+    border-right: 1px solid #DCDCDC;
+}
+
+.QTableView::item:selected {
+    background-color: #4f7cce;
+}
+*/
+
+/*------------------------------------------------------------------------------------*/
+#SearchTextEdit, #MessageTreeWidget {
+    border:1px solid #DCDCDC;
+}
+
+#GeneralSettingsPage, #BitstreamSettingsPage, #TextEditorSettingsPage {
+    background-image: url(:/resource/white.png);
+    border:4px solid #DCDCDC;
+}
+
+#SettingsPageTitleLabel {
+    border-bottom: 3px dashed #DCDCDC;
+    border-radius: 0px;
+}
