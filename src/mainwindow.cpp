@@ -1,6 +1,9 @@
 #include "mainwindow.h"
+#include "ChatArea.h"
+#include "ChatBubble.h"
 #include <QFontMetrics>
 #include <QScrollBar>
+#include <QTimer>
 
 MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent)
@@ -13,17 +16,9 @@ MainWindow::MainWindow(QWidget *parent)
 	mainLay->setContentsMargins(8,8,8,8);
 	mainLay->setSpacing(8);
 
-	// 消息列表
-	list = new QListWidget(central);
-	list->setWordWrap(true);
-	list->setUniformItemSizes(false);
-	list->setSelectionMode(QAbstractItemView::NoSelection);
-	list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-	list->setFrameShape(QFrame::NoFrame);
-	list->setSpacing(6); // 行间距
-	// 安装气泡委托（最关键）
-	list->setItemDelegate(new BubbleDelegate(list));
-	mainLay->addWidget(list,1);
+	// ChatArea 替代原来的 QListWidget
+	chatArea = new ChatArea(central);
+	mainLay->addWidget(chatArea,1);
 
 	// 输入区
 	auto *inputRow = new QHBoxLayout;
@@ -66,47 +61,32 @@ void MainWindow::onSendClicked()
 		return;
 
 	edit->clear();
-	addMessage(text, /*isUser=*/true);
 
-	QTimer::singleShot(300,this,[this,text](){
-		addMessage(QStringLiteral("AI:over - ") + text, /*isUser=*/false);
+	// 1) 显示用户消息（右对齐），不需要流式
+	ChatBubble *user = chatArea->addBubble(true);
+	user->appendStreamChunk(text);
+	user->finalize();
+
+	// 2) 创建 AI 气泡并模拟流式（真实场景：把 LLM 的 chunk 信号 connect 到 ai->appendStreamChunk）
+	ChatBubble *ai = chatArea->addBubble(false);
+
+	// 这里用 QTimer 模拟分块流式到来；真实使用时从网络/LLM线程通过 queued signal 调用 appendStreamChunk
+	const QString simulated = QStringLiteral("123");
+	QTimer::singleShot(200,this,[ai,simulated]() {
+		// 简化：按词分块
+		const QStringList parts = simulated.split(' ');
+		int t = 0;
+		for(const QString &p : parts) {
+			QTimer::singleShot(t,ai,[ai,p](){ ai->appendStreamChunk(p + " "); });
+			t += 60;
+		}
+		// 流结束时 finalize
+		QTimer::singleShot(t + 80,ai,[ai](){ ai->finalize(); });
 	});
-}
-
-void MainWindow::addMessage(const QString &text,bool isUser)
-{
-	if(isUser) {
-		auto *item = new QListWidgetItem(text);
-		item->setData(BubbleDelegate::IsUserRole,true);
-		list->addItem(item);
-	} else {
-		auto *item = new QListWidgetItem;
-		list->addItem(item);                          // ① 先插入
-		auto *w = new AiBubbleWidget(list);
-		list->setItemWidget(item,w);                 // ② 再挂部件
-
-		w->setHostItem(item);
-		w->setViewportWidth(list->viewport()->width());
-		w->setMarkdownText(text);                     // ③ 最后设内容（触发 recalc，现在已生效）
-		// 可选：再来一次 layout，确保刷新
-		list->doItemsLayout();
-		list->scrollToBottom();
-	}
-	list->scrollToBottom();
 }
 
 void MainWindow::resizeEvent(QResizeEvent *e)
 {
 	QMainWindow::resizeEvent(e);
-
-	const int vw = list->viewport()->width();
-	for(int i = 0; i < list->count(); ++i) {
-		if(auto *w = list->itemWidget(list->item(i))) {
-			if(auto *ai = qobject_cast<AiBubbleWidget*>(w)) {
-				ai->setViewportWidth(vw);                       // ★ 会触发 recalc
-				// 不必手动 setSizeHint，ai->recalc() 已经做了
-			}
-		}
-	}
-	list->doItemsLayout();
+	// ChatArea 自身会在 resizeEvent 内下发宽度到每个 Bubble，因此这里不需要做额外事情。
 }
