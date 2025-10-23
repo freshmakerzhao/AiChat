@@ -12,6 +12,12 @@
 #include <QAbstractTextDocumentLayout>
 #include <QTextBrowser>
 #include <QDebug>
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 
 class AiBubbleWidget: public QWidget {
 	Q_OBJECT
@@ -21,18 +27,19 @@ public:
 		setAttribute(Qt::WA_TranslucentBackground,true);
 		setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Minimum);
 
-		// 外层水平布局：留出左侧 hMargin 实现“左贴边”的效果
+		// 外层水平布局：留出左侧 hMargin 实现"左贴边"的效果
 		outerLay = new QHBoxLayout(this);
-		outerLay->setContentsMargins(kHMargin,0,kHMargin,0); // 左右边距、顶部微距
+		outerLay->setContentsMargins(kHMargin,6,kHMargin,6); // 增加上下边距避免重叠
 		outerLay->setSpacing(0);
 
 		// 圆角气泡：使用 QFrame + 样式表，不再自绘
 		bubble = new QFrame(this);
 		bubble->setObjectName("AiBubble");
 		bubble->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Minimum);
+		bubble->setAttribute(Qt::WA_TranslucentBackground,true);
+		bubble->setAttribute(Qt::WA_StyledBackground,false);
 		bubble->setStyleSheet(
 			"QFrame#AiBubble {"
-			"  background: rgb(245,245,245);"
 			"  border-radius: 12px;"
 			"}"
 		);
@@ -99,7 +106,7 @@ public:
 		const int contentH = int(std::ceil(tmp.size().height()));
 
 		const int bubbleH  = contentH + 2*kVPadding;
-		const int totalH   = bubbleH + 3 + 6;
+		const int totalH   = bubbleH + 12; // 气泡高度 + 上下边距(6+6)
 		return QSize(bubbleW + 2*kHMargin,totalH);
 	}
 
@@ -153,7 +160,7 @@ private:
 
 		// 3) 更新 item 的 sizeHint
 		const int bubbleH = contentH + 2*kVPadding;
-		const int totalH  = bubbleH;
+		const int totalH  = bubbleH + 12; // 气泡高度 + 上下边距(6+6)
 
 		cachedSizeHint = QSize(bubbleW + 2*kHMargin,totalH);
 		measured = true;
@@ -165,11 +172,6 @@ private:
 		}
 		updateGeometry();
 		update();
-		qDebug().noquote()
-			<< "[AI] vw=" << viewW
-			<< " bubbleW=" << bubbleW
-			<< " contentW=" << contentW
-			<< " contentH=" << contentH;
 	}
 
 private:
@@ -208,6 +210,7 @@ public:
 	{
 		if(auto lv = qobject_cast<const QListWidget*>(opt.widget)) {        // const 版本
 			if(auto it = lv->item(idx.row())) {                              // const QListWidgetItem*
+				// 如果这个项目有自定义 widget，直接返回 widget 的 sizeHint
 				if(QWidget *w = lv->itemWidget(it)) {                        // OK：这个函数是 const 成员
 					const QSize ws = w->sizeHint();
 					return {opt.rect.width(),ws.height()};
@@ -215,7 +218,13 @@ public:
 			}
 		}
 
+		// 只有用户消息才需要 delegate 计算尺寸
 		const bool isUser  = idx.data(IsUserRole).toBool();
+		if (!isUser) {
+			// AI 消息应该使用 AiBubbleWidget，不应该走到这里
+			return {opt.rect.width(), 40}; // 默认最小高度
+		}
+
 		const QString text = idx.data(Qt::DisplayRole).toString();
 
 		const QWidget *w = opt.widget;
@@ -246,8 +255,8 @@ public:
 
 		const int bubbleH = int(std::ceil(doc.size().height())) + 2*kVPadding;
 
-		// 列表项宽：整行宽；高：气泡高 + 行间距
-		return {viewW,bubbleH };
+		// 列表项宽：整行宽；高：气泡高 + 足够的行间距避免重叠
+		return {viewW, bubbleH + 8}; // 增加额外间距
 	}
 
 	void paint(QPainter *p,const QStyleOptionViewItem &opt,
@@ -255,14 +264,27 @@ public:
 	{
 		if(!p || !p->isActive()) return;
 
+		// 如果有自定义 widget，不需要 delegate 绘制
+		if(auto lv = qobject_cast<const QListWidget*>(opt.widget)) {
+			if(auto it = lv->item(idx.row())) {
+				if(lv->itemWidget(it)) {
+					return; // 跳过绘制，让 widget 自己处理
+				}
+			}
+		}
+
 		const bool isUser  = idx.data(IsUserRole).toBool();
+		if (!isUser) {
+			return; // AI 消息应该使用 AiBubbleWidget
+		}
+
 		const QString text = idx.data(Qt::DisplayRole).toString();
 
 		const int viewW = opt.rect.width();
 
 		const QColor userBg = QColor(QStringLiteral("#6a4cff"));
 		const QColor userFg = Qt::white;
-		const QColor aiBg   = QColor(245,245,245);
+		const QColor aiBg   = Qt::transparent;
 		const QColor aiFg   = QColor(33,33,33);
 
 		const int userMaxBubbleW = qMax(kMinBubble,int(viewW * 0.70) - 2*kHMargin);
@@ -288,15 +310,15 @@ public:
 
 		const int bubbleH = int(std::ceil(doc.size().height())) + 2*kVPadding;
 
-		// 位置：用户右、AI 左
+		// 位置：用户右、AI 左，增加顶部间距
 		QRect bubbleRect;
 		if(isUser) {
 			bubbleRect = QRect(opt.rect.right() - kHMargin - bubbleW,
-							   opt.rect.top() + 3,
+							   opt.rect.top() + 4, // 增加顶部间距
 							   bubbleW,bubbleH);
 		} else {
 			bubbleRect = QRect(opt.rect.left() + kHMargin,
-							   opt.rect.top() + 3,
+							   opt.rect.top() + 4, // 增加顶部间距
 							   bubbleW,bubbleH);
 		}
 		const QRect contentRect = bubbleRect.adjusted(kPadding,kVPadding,-kPadding,-kVPadding);
@@ -322,7 +344,7 @@ public:
 		p->setPen(isUser ? userFg : aiFg);
 		p->translate(contentRect.topLeft());
 		QAbstractTextDocumentLayout::PaintContext ctx;
-		// 设置前景色（也可以给 doc 的 defaultTextOption 设置，但这里简单）
+		// 设置前景色
 		ctx.palette.setColor(QPalette::Text,isUser ? userFg : aiFg);
 		doc.documentLayout()->draw(p,ctx);
 		p->restore();
@@ -343,9 +365,13 @@ protected:
 
 private slots:
 	void onSendClicked();
+	void onStreamTimer(); // 流式显示定时器
+	void onApiResponse(); // API 响应处理
 
 private:
 	void addMessage(const QString &text,bool isUser);
+	void startStreamResponse(const QString &fullText);
+	void sendApiRequest(const QString &userMessage); // 发送 API 请求
 	void updateAllItemHeights(); // 窗口尺寸变化时重算气泡高度
 
 private:
@@ -353,4 +379,14 @@ private:
 	QListWidget *list = nullptr;
 	QTextEdit *edit = nullptr;
 	QPushButton *sendBtn = nullptr;
+	
+	// 网络请求相关
+	QNetworkAccessManager *networkManager = nullptr;
+	QNetworkReply *currentReply = nullptr;
+	
+	// 流式显示相关
+	QTimer *streamTimer = nullptr;
+	QString currentStreamText; // 当前正在流式显示的完整文本
+	int streamPosition = 0;    // 当前显示到的位置
+	AiBubbleWidget *currentStreamWidget = nullptr; // 当前正在更新的 AI 气泡
 };

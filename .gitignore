@@ -4,3 +4,4 @@
 src/out
 .idea
 cmake-build*
+*/enc_temp_folder/*

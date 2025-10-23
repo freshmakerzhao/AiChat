@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/">
 		<file>resource/fonts/LFTEtica/no-liga-LFTEticaMono-Regular-OK.ttf</file>
+		<file>resource/config.env</file>
     </qresource>
 </RCC>
