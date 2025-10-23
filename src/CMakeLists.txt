@@ -55,12 +55,18 @@ find_package(md4c CONFIG REQUIRED)
 # Add source files
 file(GLOB PROJECT_SOURCES
     utils/*.cpp
+    widgets/*.cpp
+    core/*.cpp
+    network/*.cpp
     *.cpp
 )
 
 # Add header files
 file(GLOB PROJECT_HEADERS
     utils/*.h
+    widgets/*.h
+    core/*.h
+    network/*.h
     *.h
 )
 

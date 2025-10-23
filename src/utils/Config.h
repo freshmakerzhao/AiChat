@@ -6,22 +6,23 @@
 #include <QTextStream>
 #include <QDebug>
 #include <QDir>
+#include <QMap>
 
 namespace Config {
 
-    // 从 config.env 文件读取配置值
+    // Simple cached configuration reading
     inline QString getValue(const QString &key, const QString &defaultValue = QString())
     {
         static QMap<QString, QString> configCache;
         static bool loaded = false;
         
         if (!loaded) {
-            // 尝试从不同位置加载配置文件
+            // Try to load config file from multiple locations
             QStringList configPaths = {
-        		":/resource/config.env"
+                QDir::currentPath() + "/config.env",
+                ":/resource/config.env"
             };
             
-            bool configFound = false;
             for (const QString &path : configPaths) {
                 QFile file(path);
                 if (file.exists() && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -29,7 +30,7 @@ namespace Config {
                     while (!in.atEnd()) {
                         QString line = in.readLine().trimmed();
                         if (line.isEmpty() || line.startsWith('#')) {
-                            continue; // 跳过空行和注释
+                            continue;
                         }
                         
                         int equalPos = line.indexOf('=');
@@ -39,14 +40,9 @@ namespace Config {
                             configCache[k] = v;
                         }
                     }
-                    configFound = true;
-                    qDebug() << "[Config] 已加载配置文件:" << path;
+                    qDebug() << "[Config] Loaded configuration from:" << path;
                     break;
                 }
-            }
-            
-            if (!configFound) {
-                qWarning() << "[Config] 未找到配置文件，请确保 config.env 存在";
             }
             loaded = true;
         }
@@ -54,7 +50,7 @@ namespace Config {
         return configCache.value(key, defaultValue);
     }
 
-    // 常用配置项的便捷访问方法
+    // Convenience methods
     inline QString getDeepSeekApiKey() {
         return getValue("DEEPSEEK_API_KEY");
     }

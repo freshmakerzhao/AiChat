@@ -7,14 +7,14 @@
 
 namespace FontsUtil {
 
-    // 固定资源路径（确保该 ttf 已被加入到 .qrc）
+    // Fixed resource path (ensure this ttf has been added to .qrc)
     inline constexpr const char* kFontResPath =
         ":/resource/fonts/LFTEtica/no-liga-LFTEticaMono-Regular-OK.ttf";
 
-    // 返回加载到的字体族名；失败时返回空串
+    // Returns the loaded font family name; returns empty string on failure
     inline QString loadFixedFontFamily()
     {
-        // 先尝试加载固定资源字体
+        // First try to load fixed resource font
         int id = QFontDatabase::addApplicationFont(kFontResPath);
         if (id == -1) {
             qWarning() << "[FontsUtil] Failed to add font from resource:" << kFontResPath;
@@ -33,10 +33,10 @@ namespace FontsUtil {
         return family;
     }
 
-    // 加载并设置应用字体；保持当前字号，失败时回退到系统等宽字体
+    // Load and set application font; maintain current font size, fallback to system monospace font on failure
     inline void loadFont()
     {
-        // 记录当前字号，避免切换字体改变大小
+        // Record current font size to avoid changing size when switching fonts
         const qreal currentPt = QApplication::font().pointSizeF();
 
         QString family = loadFixedFontFamily();
@@ -46,17 +46,17 @@ namespace FontsUtil {
             appFont = QFont(family);
         }
         else {
-            // 回退：系统等宽字体
+            // Fallback: system monospace font
             appFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
             qWarning() << "[FontsUtil] Fallback to system fixed font:"
                 << appFont.family();
         }
 
-        // 通用等宽/渲染偏好
+        // General monospace/rendering preferences
         appFont.setPointSizeF(currentPt);
         appFont.setStyleHint(QFont::Monospace);
         appFont.setFixedPitch(true);
-        appFont.setHintingPreference(QFont::PreferNoHinting); // 减轻中文笔画粘连
+        appFont.setHintingPreference(QFont::PreferNoHinting); // Reduce character overlapping
 
         QApplication::setFont(appFont);
         qDebug() << "[FontsUtil] Application font set to:" << appFont.family()

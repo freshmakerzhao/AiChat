@@ -3,9 +3,9 @@
 
 namespace MarkdownUtil {
 
-    // 将 Markdown 转为可给 QTextBrowser 使用的 HTML 页面。
-    // - basePointSize: 外层 <body> 的基础字号（pt）
-    // - disableHtml  : 为 true 时，屏蔽 Markdown 源中的原生 HTML（安全展示）
+    // Convert Markdown to HTML page that can be used by QTextBrowser.
+    // - basePointSize: base font size for outer <body> (pt)
+    // - disableHtml  : when true, disable native HTML in Markdown source (secure display)
     QString markdownToHtml(const QString& md,
         int basePointSize = 10,
         bool disableHtml = false);
